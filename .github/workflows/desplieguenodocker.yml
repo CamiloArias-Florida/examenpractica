@@ -45,21 +45,17 @@ jobs:
           USERNAME: ubuntu
           DEPLOY_PATH: /var/www/html/calculadora
         run: |
+          # Limpiar y crear directorio SSH
+          rm -rf ~/.ssh
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          
+          # Configurar clave SSH con formato correcto
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          eval $(ssh-agent -s)
-          ssh-add ~/.ssh/id_rsa
           
           # Configurar known_hosts
           ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           
-          # Crear directorio y establecer permisos
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $USERNAME@$HOST "sudo mkdir -p $DEPLOY_PATH"
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $USERNAME@$HOST "sudo chown -R ubuntu:www-data $DEPLOY_PATH"
-          
-          # Desplegar código
-          rsync -avz -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" --exclude 'tests' --exclude '.git' . $USERNAME@$HOST:$DEPLOY_PATH/
-          
-          # Configurar permisos y reiniciar Apache
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $USERNAME@$HOST "cd $DEPLOY_PATH && composer install --no-dev && sudo systemctl restart apache2"
+          # Probar conexión
+          ssh -v -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $USERNAME@$HOST "echo 'Test connection'"
