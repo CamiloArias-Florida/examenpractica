@@ -42,14 +42,28 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           HOST: ${{ secrets.HOST }}
-          USERNAME: ${{ secrets.USERNAME }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          USERNAME: ubuntu
+          DEPLOY_PATH: /var/www/html/calculadora
         run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "mkdir -p $DEPLOY_PATH"
-          rsync -avz --delete --no-t --exclude 'tests' --exclude '.git' . $USERNAME@$HOST:$DEPLOY_PATH
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "cd $DEPLOY_PATH && composer install --no-dev --optimize-autoloader"
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "sudo systemctl restart apache2"
-  
+          # Configurar SSH con mayor seguridad
+          install -m 700 -d ~/.ssh
+          install -m 600 -D /dev/null ~/.ssh/id_rsa
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          
+          # Configurar known_hosts
+          ssh-keyscan -t rsa $HOST >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          
+          # Prueba de conexión con verbose
+          ssh -v -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $USERNAME@$HOST "echo 'Test connection'"
+          
+          # Si la conexión es exitosa, proceder con el despliegue
+          if [ $? -eq 0 ]; then
+            rsync -avz -e "ssh -i ~/.ssh/id_rsa" --delete --exclude 'tests' --exclude '.git' . $USERNAME@$HOST:$DEPLOY_PATH/
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $USERNAME@$HOST "cd $DEPLOY_PATH && composer install --no-dev && sudo systemctl restart apache2"
+          else
+            echo "Error en la conexión SSH"
+            exit 1
+          fi
