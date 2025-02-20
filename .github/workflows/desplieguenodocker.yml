@@ -42,20 +42,14 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           HOST: ${{ secrets.HOST }}
-          USERNAME: ubuntu
-          DEPLOY_PATH: /var/www/html/calculadora
+          USERNAME: ${{ secrets.USERNAME }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          # Configurar SSH
-          install -m 600 -D /dev/null ~/.ssh/id_rsa
+          mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          eval "$(ssh-agent -s)"
-          ssh-add ~/.ssh/id_rsa
-          
-          # Añadir host a known_hosts
-          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
-          
-          # Intentar conexión con debug
-          ssh -vvv -o StrictHostKeyChecking=no $USERNAME@$HOST "echo 'Test connection'"
-          
-          # Si la conexión es exitosa, continuar con el despliegue
-          rsync -avz --delete --exclude '.git' --exclude 'tests' . $USERNAME@$HOST:$DEPLOY_PATH/
+          chmod 600 ~/.ssh/id_rsa
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "mkdir -p $DEPLOY_PATH"
+          rsync -avz --delete --no-t --exclude 'tests' --exclude '.git' . $USERNAME@$HOST:$DEPLOY_PATH
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "cd $DEPLOY_PATH && composer install --no-dev --optimize-autoloader"
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "sudo systemctl restart apache2"
+  
